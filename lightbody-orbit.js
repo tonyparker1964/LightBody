@@ -221,6 +221,10 @@
 
   const fragmentShader = `
     precision mediump float;
+    uniform sampler2D artwork;
+    uniform sampler2D angleAtlas;
+    uniform float atlasReady;
+    uniform float artworkReady;
     uniform int material;
     uniform float radiance;
     varying mediump vec3 colorOrNormal;
@@ -238,7 +242,16 @@
         vec3 c = vec3(.071,.026,.106) + key * vec3(.30,.16,.24)
           + fill * vec3(.07,.105,.24) + rim * vec3(.38,.16,.36)
           + gloss * vec3(.31,.19,.31) + filaments;
-        gl_FragColor = vec4(c,1.0);
+        vec2 uv = vec2(.5 + modelPosition.x * (250.0 / 1024.0),
+          .5 - modelPosition.y * (250.0 / 1536.0));
+        vec3 original = texture2D(artwork, uv).rgb;
+        vec2 backPixel = vec2(769.0 - modelPosition.x * 80.0, 246.0 - modelPosition.y * 81.0);
+        float backSurface = atlasReady * smoothstep(.10, .50, -colorOrNormal.z);
+        original = mix(original, texture2D(angleAtlas, backPixel / vec2(1536.0, 1024.0)).rgb, backSurface);
+        float frontSurface = smoothstep(-.06, .22, colorOrNormal.z);
+        float likeness = max(artworkReady * frontSurface, backSurface) * smoothstep(.06, .28, max(original.r, max(original.g, original.b)));
+        vec3 textured = original * (.67 + .25 * key + .08 * fill) + rim * vec3(.13,.05,.14);
+        gl_FragColor = vec4(mix(c, textured, likeness), 1.0);
       } else if (material == 1) {
         gl_FragColor = vec4(colorOrNormal * (.44 + .56 * radiance), .83);
       } else {
@@ -249,7 +262,7 @@
       }
     }`;
 
-  function renderer(canvas, nodes, state) {
+  function renderer(canvas, nodes, state, requestDraw) {
     const gl = canvas.getContext('webgl', {antialias: true, alpha: false});
     if (!gl) throw new Error('WebGL is unavailable');
     function compile(type, source) {
@@ -265,6 +278,51 @@
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
     gl.useProgram(program);
+
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+      new Uint8Array([0, 0, 0, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    const artworkReady = gl.getUniformLocation(program, 'artworkReady');
+    let hasTexture = false;
+    const source = new Image();
+    source.onload = () => {
+      if (gl.isContextLost()) return;
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      hasTexture = true;
+      requestDraw();
+    };
+    source.src = document.querySelector('#art image').getAttribute('href');
+
+    const atlasReady = gl.getUniformLocation(program, 'atlasReady');
+    gl.uniform1i(gl.getUniformLocation(program, 'angleAtlas'), 1);
+    const atlas = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, atlas);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+      new Uint8Array([0, 0, 0, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.activeTexture(gl.TEXTURE0);
+    let hasAtlas = false;
+    const atlasImage = new Image();
+    atlasImage.onload = () => {
+      if (gl.isContextLost()) return;
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, atlas);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlasImage);
+      gl.activeTexture(gl.TEXTURE0);
+      hasAtlas = true;
+      requestDraw();
+    };
+    atlasImage.src = document.querySelector('#angleArt image').getAttribute('href');
 
     const position = gl.getAttribLocation(program, 'position');
     const detail = gl.getAttribLocation(program, 'detail');
@@ -329,6 +387,8 @@
       gl.uniform2f(angle, state.yaw, state.pitch);
       gl.uniform1f(pixelRatio, dpr);
       gl.uniform1f(radiance, state.radiance);
+      gl.uniform1f(artworkReady, Number(hasTexture));
+      gl.uniform1f(atlasReady, Number(hasAtlas));
       drawBuffer(bodyBuffer, 6, body.length / 6, gl.TRIANGLES, 0);
       gl.enable(gl.BLEND);
       gl.depthMask(false);
@@ -345,14 +405,29 @@
   window.createLightBodyOrbit = function (viewer, nodes) {
     const canvas = document.getElementById('orbit');
     const viewMode = document.getElementById('viewMode');
-    const reset = document.getElementById('resetView');
+    const angleArt = document.getElementById('angleArt');
+    const angleButtons = [...document.querySelectorAll('[data-angle]')];
+    const presets = [
+      [0, 0, ''],
+      [Math.PI, 0, '515 3 508 473'],
+      [0, 1.24, '1028 3 505 473'],
+      [0, -1.24, '3 481 507 539'],
+      [-.48, .64, '515 481 508 539'],
+      [0, -.76, '1028 481 505 539']
+    ];
+    let selected = 0;
     const help = document.getElementById('viewHelp');
-    const state = {yaw: -.35, pitch: .08, active: 0, radiance: .8};
+    const state = {yaw: 0, pitch: 0, active: 0, radiance: .8};
     let draw;
     let dragging;
     let frame = 0;
 
     function requestDraw() {
+      viewer.style.setProperty('--sheet-image', !canvas.hidden && selected > 0 ? '1' : '0');
+      const facing = Math.cos(state.yaw) * Math.cos(state.pitch);
+      const front = Math.max(0, Math.min(1, (facing - .965) / .035));
+      const upright = Math.cos(state.pitch) > 0 && Math.cos(state.yaw) > 0;
+      viewer.style.setProperty('--front-image', upright && selected <= 0 ? String(front) : '0');
       if (canvas.hidden || !draw || frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
@@ -363,7 +438,7 @@
     function setView(enabled) {
       if (enabled && !draw) {
         try {
-          draw = renderer(canvas, nodes, state);
+          draw = renderer(canvas, nodes, state, requestDraw);
         } catch (error) {
           console.warn('LightBody 3D could not initialize:', error);
           help.textContent = '3D requires WebGL. The original illustration is still available.';
@@ -374,22 +449,28 @@
       canvas.hidden = !enabled;
       viewer.classList.toggle('orbit-mode', enabled);
       viewer.tabIndex = enabled ? 0 : -1;
-      reset.disabled = !enabled;
+      angleButtons.forEach(button => { button.disabled = !enabled; });
       viewMode.setAttribute('aria-pressed', String(enabled));
       requestDraw();
     }
 
     function rotate(horizontal, vertical) {
+      selected = -1;
+      angleButtons.forEach(button => button.setAttribute('aria-pressed', 'false'));
       const turn = 2 * Math.PI;
       state.yaw = (state.yaw + horizontal) % turn;
       state.pitch = (state.pitch + vertical) % turn;
       requestDraw();
     }
 
-    reset.addEventListener('click', () => {
-      Object.assign(state, {yaw: 0, pitch: 0});
+    angleButtons.forEach((button, index) => button.addEventListener('click', () => {
+      selected = index;
+      const [yaw, pitch, crop] = presets[index];
+      Object.assign(state, {yaw, pitch});
+      if (crop) angleArt.setAttribute('viewBox', crop);
+      angleButtons.forEach((item, i) => item.setAttribute('aria-pressed', String(i === index)));
       requestDraw();
-    });
+    }));
     viewMode.addEventListener('click', () => setView(canvas.hidden));
     viewer.addEventListener('pointerdown', event => {
       if (canvas.hidden || dragging || event.button !== 0) return;

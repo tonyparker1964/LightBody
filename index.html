@@ -14,7 +14,11 @@
 .viewer.orbit-mode { cursor: grab; touch-action: none; }
 .viewer.is-dragging { cursor: grabbing; }
 #orbit { display: block; width: 100%; height: min(80vh, 920px); min-height: 600px; }
-#orbit[hidden], .orbit-mode #art { display: none; }
+#orbit[hidden] { display: none; }
+#art { pointer-events: none; }
+.orbit-mode #art { position: absolute; inset: 0; opacity: var(--front-image, 1); }
+.artwork { opacity: 1; }
+.orbit-mode .artwork { transition: none; }
 .view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
 .view-controls button { padding: 8px 10px; }
 .view-controls button[aria-pressed="true"] { background: #67378a; }
@@ -25,9 +29,15 @@
   .stage { grid-row: 1; }
   .panel { grid-row: 2; }
 }
+
+.angle-art { position:absolute; inset:0; pointer-events:none; background:#0e0518; opacity:var(--sheet-image, 0); }
+.angle-picker { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 15px; }
+.angle-picker button { padding:6px 9px; font-size:12px; }
+.angle-picker button[aria-pressed="true"] { background:#67378a; }
 </style></head><body><header><div><h1>LIGHTBODY</h1><small>114-point energy constellation · Interactive activation</small></div><nav style="display:flex;align-items:center;gap:18px;flex-wrap:wrap"><a href="./about.html" style="color:#f1c5ff;text-decoration:none;font-weight:650">About</a><a href="https://tonyparker1964.github.io/LightBody/" style="color:#f1c5ff;text-decoration:none" title="Open the live LightBody web app">Website ↗</a></nav></header>
 <main><section class="stage" aria-label="Animated symbolic energy body"><div id="completion" class="completion">FULL LIGHT BODY ACTIVATED</div><div id="viewer" class="viewer" role="group" aria-label="LightBody artwork view" aria-describedby="viewHelp" tabindex="0">
 <canvas id="orbit" hidden role="img" aria-label="Rotatable 3D energy body showing the front, sides, and back"></canvas>
+<svg id="angleArt" class="angle-art" viewBox="515 3 508 473" aria-hidden="true"><image href="./lightbody-angles.jpg" width="1536" height="1024"/></svg>
 <svg id="art" viewBox="0 0 1024 1536" role="img" aria-label="Luminous energy body with a golden geometric field and animated chakra points">
   <defs>
     <radialGradient id="glow">
@@ -36,13 +46,20 @@
       <stop offset="1" stop-color="white" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <image class="artwork" href="./lightbody.jpg" width="1024" height="1536"/>
+  <image class="artwork" href="./lightbody-original.png" width="1024" height="1536"/>
   <g id="points" style="mix-blend-mode:screen"></g>
 </svg>
 
 </div></section>
-<aside class="panel"><h2>Activation console</h2><div class="muted">Illuminated energy points</div><div class="stat"><span id="count">0</span><span class="muted" style="font-size:20px"> / 114</span></div><div class="progress"><div id="bar"></div></div><div class="buttons"><button class="primary" id="start">▶ Activate</button><button id="pause">Ⅱ Pause</button><button id="reset">↺ Reset</button><button id="all">✦ Full Light</button></div><div class="view-controls"><button id="viewMode" type="button" aria-pressed="false" disabled>3D Orbit</button><button id="resetView" type="button" disabled>Front View</button><small id="viewHelp">Drag or focus the figure and use the arrow keys to rotate.</small></div><label for="speed">Activation speed <span id="speedLabel">12</span> points/sec</label><input id="speed" type="range" min="1" max="60" value="12"><label for="brightness">Radiance <span id="brightLabel">80</span>%</label><input id="brightness" type="range" min="20" max="100" value="80"><div class="legend"><span class="chip">🟡 Nerves</span><span class="chip">🔴 Arteries</span><span class="chip">🔵 Veins</span><span class="chip">🟣 Energy</span></div><p class="muted" id="status" aria-live="polite">Ready to illuminate.</p><p class="notice">This is an artistic, symbolic 114-point energy model. Chakra counts and locations are not scientifically established. The vascular and neural pathways are stylized rather than medical diagrams.</p></aside></main>
-<script src="./lightbody-orbit.js"></script>
+<aside class="panel"><h2>Activation console</h2><div class="muted">Illuminated energy points</div><div class="stat"><span id="count">0</span><span class="muted" style="font-size:20px"> / 114</span></div><div class="progress"><div id="bar"></div></div><div class="buttons"><button class="primary" id="start">▶ Activate</button><button id="pause">Ⅱ Pause</button><button id="reset">↺ Reset</button><button id="all">✦ Full Light</button></div><div class="view-controls"><button id="viewMode" type="button" aria-pressed="false" disabled>3D Orbit</button><small id="viewHelp">Pick an artwork angle or drag to rotate the 3D model.</small></div><div class="angle-picker" role="group" aria-label="Artwork angles">
+<button type="button" data-angle="0" aria-pressed="true" disabled>Front</button>
+<button type="button" data-angle="1" aria-pressed="false" disabled>Back</button>
+<button type="button" data-angle="2" aria-pressed="false" disabled>Top</button>
+<button type="button" data-angle="3" aria-pressed="false" disabled>Bottom</button>
+<button type="button" data-angle="4" aria-pressed="false" disabled>Overhead</button>
+<button type="button" data-angle="5" aria-pressed="false" disabled>Underneath</button>
+</div><label for="speed">Activation speed <span id="speedLabel">12</span> points/sec</label><input id="speed" type="range" min="1" max="60" value="12"><label for="brightness">Radiance <span id="brightLabel">80</span>%</label><input id="brightness" type="range" min="20" max="100" value="80"><div class="legend"><span class="chip">🟡 Nerves</span><span class="chip">🔴 Arteries</span><span class="chip">🔵 Veins</span><span class="chip">🟣 Energy</span></div><p class="muted" id="status" aria-live="polite">Ready to illuminate.</p><p class="notice">This is an artistic, symbolic 114-point energy model. Chakra counts and locations are not scientifically established. The vascular and neural pathways are stylized rather than medical diagrams.</p></aside></main>
+<script src="./lightbody-orbit.js?v=angles"></script>
 <script>
 'use strict';
 const art = document.getElementById('art');
@@ -99,7 +116,6 @@ let active=0,running=false,last=0,carry=0;const count=document.getElementById('c
 function render() {
   const radiance = Number(brightness.value) / 100;
   updateOrbit?.(active, radiance);
-  art.style.setProperty('--art-radiance', .48 + .52 * (active / nodes.length) * radiance);
   pointEls.forEach((element, index) => {
     const illuminated = index < active;
     element.setAttribute('opacity', illuminated ? radiance : 0);
