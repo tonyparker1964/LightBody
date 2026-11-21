@@ -12,6 +12,11 @@
   const art = new Image();
   art.src = document.querySelector('#art image').getAttribute('href');
 
+  const sheet = new Image();
+  sheet.src = document.querySelector('#angleArt image').getAttribute('href');
+  const angleButtons = [...document.querySelectorAll('[data-angle]')];
+  const angleNames = ['Front', 'Back', 'Top', 'Bottom', 'Overhead', 'Underneath'];
+
   const centers = [
     ['Root', 825, '#ff4353'], ['Sacral', 725, '#ff963e'],
     ['Solar Plexus', 612, '#ffdb46'], ['Heart', 470, '#68ff70'],
@@ -47,6 +52,36 @@
     [270,1028],[753,1028],[326,1128],[696,1128],[383,1247],[641,1247],
     [289,1286],[734,1286],[228,1357],[796,1357],[355,1473],[668,1473]
   ];
+  // Each row registers the front artwork's height to a point and width scale on the sheet.
+  // For the foreshortened views the scale varies from head to hands to feet.
+  const views = [
+    {crop: [0, 0, 1024, 1536], heart: [548, 436, 51, 61]},
+    {crop: [606, 3, 326, 473], heart: null, rows: [
+      [140,769,47,.32],[207,769,67,.32],[335,769,111,.33],[470,769,153,.32],
+      [612,769,196,.33],[725,769,228,.32],[825,769,259,.32],[1028,769,324,.32],
+      [1326,769,421,.32],[1437,769,452,.32]
+    ]},
+    {crop: [1028, 3, 505, 473], heart: [1311, 274, 22, 19], rows: [
+      [140,1279,166,.78],[207,1279,233,.64],[335,1279,252,.63],[470,1279,286,.61],
+      [612,1279,308,.53],[725,1279,324,.55],[825,1279,338,.53],[1028,1279,365,.37],
+      [1326,1279,383,.38],[1437,1279,399,.43]
+    ]},
+    {crop: [3, 481, 507, 539], heart: [277, 592, 21, 13], rows: [
+      [140,257,543,.34],[207,257,567,.35],[335,257,579,.39],[470,257,587,.45],
+      [612,257,611,.55],[725,257,633,.62],[825,257,660,.65],[1028,257,687,.70],
+      [1326,257,823,1.03],[1437,257,964,1.10]
+    ]},
+    {crop: [515, 481, 508, 539], heart: [775, 685, 25, 22], rows: [
+      [140,758,537,.53],[207,743,575,.46],[335,757,627,.51],[470,741,688,.45],
+      [612,742,727,.47],[725,741,754,.43],[825,742,783,.43],[1028,760,839,.41],
+      [1326,739,917,.41],[1437,725,950,.37]
+    ]},
+    {crop: [1028, 481, 505, 539], heart: [1302, 581, 21, 17], rows: [
+      [140,1280,513,.34],[207,1280,537,.36],[335,1280,561,.41],[470,1280,576,.48],
+      [612,1280,610,.55],[725,1280,637,.60],[825,1280,668,.63],[1028,1280,712,.67],
+      [1326,1280,867,.98],[1437,1280,959,1]
+    ]}
+  ];
   const waves = [...fiberLayers.map(layer => layer.name), 'Light bubbles', 'Golden field', 'Lotus and full LightBody'];
   const total = centers.length + waves.length;
 
@@ -61,45 +96,94 @@
   heart.width = 116;
   heart.height = 130;
   const heartBrush = heart.getContext('2d');
-  const heartX = 493, heartY = 369;
   let heartReady = false;
+  let currentView;
 
-  function prepareHeart() {
-    if (heartReady) return;
-    heartBrush.drawImage(art, heartX, heartY, heart.width, heart.height,
-      0, 0, heart.width, heart.height);
+  function project(view, x, y) {
+    if (!view.rows) return [x, y];
+    const rows = view.rows;
+    let i = rows.findIndex(row => row[0] > y);
+    if (i < 0) i = rows.length - 1;
+    i = Math.max(1, i);
+    const [fromY, fromX, fromTarget, fromScale] = rows[i - 1];
+    const [toY, toX, toTarget, toScale] = rows[i];
+    const t = (y - fromY) / (toY - fromY);
+    return [fromX + (toX - fromX) * t + (x - 512) * (fromScale + (toScale - fromScale) * t),
+      fromTarget + (toTarget - fromTarget) * t];
+  }
+
+  function prepareView(index) {
+    const view = views[index];
+    const [x, y, width, height] = view.crop;
+    const ratio = index ? 2 : 1;
+    if (!view.source) {
+      view.source = index ? sheet : art;
+      view.centers = centers.map(([, y]) => project(view, 512, y));
+      view.fibers = fiberLayers.map(layer => ({...layer,
+        paths: layer.paths.map(path => path.map(point => project(view, ...point)))
+      }));
+      view.bubbles = index ? bubbles.slice(2).map(([px, py]) => [
+        x + width * (.06 + .88 * px / 1024), y + height * (.06 + .88 * py / 1536)
+      ]) : bubbles;
+      view.scale = Math.min(width / 1024, height / 1536);
+      view.highLights = index ? [[view.centers[6][0], Math.max(y + 5, view.centers[6][1] - 14)],
+        [view.centers[6][0], Math.max(y + 4, view.centers[6][1] - 27)]] : [[512,85],[512,41]];
+    }
+    currentView = view;
+    display.width = mask.width = width * ratio;
+    display.height = mask.height = height * ratio;
+    for (const ctx of [context, brush]) ctx.setTransform(ratio, 0, 0, ratio, -x * ratio, -y * ratio);
+    display.setAttribute('aria-label', angleNames[index] + ' view of the music-driven LightBody illumination');
+    heartReady = false;
+    if (view.source.complete && view.source.naturalWidth) prepareHeart(view);
+  }
+
+  function prepareHeart(view) {
+    heartReady = Boolean(view.heart);
+    if (!heartReady) return;
+    const [x, y, rx, ry] = view.heart;
+    heart.width = Math.ceil(rx * 2);
+    heart.height = Math.ceil(ry * 2);
+    heartBrush.drawImage(view.source, x - rx, y - ry, rx * 2, ry * 2, 0, 0, heart.width, heart.height);
     const edge = heartBrush.createRadialGradient(0, 0, .53, 0, 0, 1);
     edge.addColorStop(0, '#fff');
     edge.addColorStop(1, 'transparent');
     heartBrush.save();
     heartBrush.globalCompositeOperation = 'destination-in';
-    heartBrush.translate(55, 67);
-    heartBrush.scale(51, 61);
+    heartBrush.translate(rx, ry);
+    heartBrush.scale(rx, ry);
     heartBrush.fillStyle = edge;
-    heartBrush.fillRect(-1.2, -1.2, 2.4, 2.4);
+    heartBrush.fillRect(-1, -1, 2, 2);
     heartBrush.restore();
-    const chakra = heartBrush.createRadialGradient(19, 101, 17, 19, 101, 33);
+    const gx = view.centers[3][0] - x + rx, gy = view.centers[3][1] - y + ry;
+    const radius = 32 * view.scale;
+    const chakra = heartBrush.createRadialGradient(gx, gy, radius * .53, gx, gy, radius);
     chakra.addColorStop(0, '#fff');
     chakra.addColorStop(1, 'transparent');
     heartBrush.globalCompositeOperation = 'destination-out';
     heartBrush.fillStyle = chakra;
-    heartBrush.fillRect(0, 68, 53, 62);
+    heartBrush.fillRect(gx - radius, gy - radius, radius * 2, radius * 2);
     heartBrush.globalCompositeOperation = 'source-over';
-    heartReady = true;
   }
 
-  function pumpHeart(s, elapsed) {
-    if (s.step < 3 || reducedMotion.matches || !heartReady) return;
+  function pumpHeart(s, elapsed, view) {
+    if (s.step < 3 || reducedMotion.matches) return;
     const phase = (Math.max(0, elapsed - s.lastBeat) / s.interval) % 1;
     const primary = Math.exp(-((phase - .13) ** 2) / .006);
     const recoil = Math.exp(-((phase - .33) ** 2) / .007);
     const contraction = (primary - .36 * recoil) * (.62 + .38 * s.strength);
+    if (!heartReady) {
+      const [x, y] = view.centers[3];
+      spark(y, '#68ff70', (11 + 6 * primary) * view.scale, primary * .62, x);
+      return;
+    }
+    const [x, y, rx, ry] = view.heart;
     context.save();
-    context.translate(548, 436);
+    context.translate(x, y);
     context.rotate(contraction * .055);
     context.scale(1 - contraction * .14, 1 - contraction * .19);
-    context.globalAlpha = Math.min(1, (elapsed - s.heartBeat) / .18);
-    context.drawImage(heart, heartX - 548, heartY - 436);
+    context.globalAlpha = Math.max(0, Math.min(1, (elapsed - s.heartBeat) / .18));
+    context.drawImage(heart, -rx, -ry);
     context.restore();
   }
 
@@ -143,18 +227,18 @@
     ctx.stroke();
   }
 
-  function drawFibers(ctx, wave, progress, maskPass, pulse) {
+  function drawFibers(ctx, view, wave, progress, maskPass, pulse) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.globalCompositeOperation = maskPass ? 'source-over' : 'screen';
-    fiberLayers.forEach(({color, paths}, layer) => {
+    view.fibers.forEach(({color, paths}, layer) => {
       if (layer > wave) return;
       const live = layer === wave;
       for (const [index, path] of paths.entries()) {
         const growth = live ? (progress - (index % 7) * .026) * 1.32 : 1;
         if (growth <= 0) continue;
         ctx.strokeStyle = maskPass ? '#fff9' : color;
-        ctx.lineWidth = maskPass ? 16 : live ? 2.4 : 1.2;
+        ctx.lineWidth = (maskPass ? 16 : live ? 2.4 : 1.2) * view.scale;
         ctx.globalAlpha = maskPass ? .8 : live ? .70 + .30 * pulse : .44;
         if (!maskPass) {
           ctx.shadowBlur = live ? 10 : 3;
@@ -167,86 +251,85 @@
   }
 
   function paint(s, elapsed) {
-    context.clearRect(0, 0, 1024, 1536);
+    const view = currentView;
+    const [left, top, width, height] = view.crop;
+    const scale = view.scale;
+    context.clearRect(left, top, width, height);
     if (s.step < 0) return;
     if (s.finished) {
-      context.drawImage(art, 0, 0, 1024, 1536);
-      pumpHeart(s, elapsed);
+      context.drawImage(view.source, left, top, width, height, left, top, width, height);
+      pumpHeart(s, elapsed, view);
       return;
     }
     const since = Math.max(0, elapsed - s.lastBeat);
     const pulse = Math.exp(-since * 7);
     const visible = Math.min(s.step + 1, centers.length);
-    const moving = s.step < centers.length - 1;
-    // Saturate just before the next beat so the center itself lights on the accent.
+    const moving = visible < centers.length;
     const travel = Math.min(.98, since / s.interval);
-    const y = centers[visible - 1][1];
-    const tip = moving ? y + (centers[visible][1] - y) * travel : y;
+    const [x, y] = view.centers[visible - 1];
+    const next = moving ? view.centers[visible] : [x, y];
+    const tip = [x + (next[0] - x) * travel, y + (next[1] - y) * travel];
+    const beam = view.centers.slice(0, visible);
+    if (moving) beam.push(tip);
 
     brush.globalCompositeOperation = 'source-over';
-    brush.clearRect(0, 0, 1024, 1536);
-    for (let i = 0; i < visible; i++) {
-      const radius = i === 3 ? 86 : 53;
-      reveal(512, centers[i][1], radius, .92);
+    brush.clearRect(left, top, width, height);
+    for (let i = 0; i < visible; i++) reveal(...view.centers[i], (i === 3 ? 86 : 53) * scale, .92);
+    if (beam.length > 1) {
+      brush.lineCap = 'round';
+      brush.strokeStyle = '#fff8';
+      brush.lineWidth = 24 * scale;
+      trace(brush, beam, 1);
     }
-
-    const top = visible === centers.length ? y : tip;
-    const beam = brush.createLinearGradient(489, 0, 535, 0);
-    beam.addColorStop(0, 'transparent');
-    beam.addColorStop(.5, '#fff');
-    beam.addColorStop(1, 'transparent');
-    brush.fillStyle = beam;
-    brush.fillRect(489, top, 46, centers[0][1] - top);
-    if (visible === centers.length) {
+    if (!moving) {
       const crownAge = elapsed - s.crownBeat;
-      if (crownAge > .18) reveal(512, 85, 30);
-      if (crownAge > .39) reveal(512, 41, 32);
+      if (crownAge > .18) reveal(...view.highLights[0], 30 * scale);
+      if (crownAge > .39) reveal(...view.highLights[1], 32 * scale);
     }
 
     const wave = s.step - centers.length;
     const growth = Math.min(1, since / Math.max(.27, s.interval * .84));
-    drawFibers(brush, wave, growth, true, pulse);
-    const bubbleCount = wave < 3 ? 0 : wave === 3 ? Math.floor(bubbles.length * growth) : bubbles.length;
-    for (let i = 0; i < bubbleCount; i++) reveal(...bubbles[i], 31);
+    drawFibers(brush, view, wave, growth, true, pulse);
+    const outer = view.bubbles;
+    const bubbleCount = wave < 3 ? 0 : wave === 3 ? Math.floor(outer.length * growth) : outer.length;
+    for (let i = 0; i < bubbleCount; i++) reveal(...outer[i], 31 * scale);
     if (wave >= 4) {
       brush.fillStyle = 'rgba(255,255,255,' + (wave === 4 ? growth * .55 : .55) + ')';
-      brush.fillRect(0, 0, 1024, 1536);
+      brush.fillRect(left, top, width, height);
     }
-    if (wave >= 5) reveal(512, 1440, 260);
-    if (s.step === total - 1) {
+    if (wave >= 5) {
+      reveal(left + width / 2, top + height * .94, 260 * scale);
       brush.fillStyle = 'rgba(255,255,255,' + Math.min(1, since / .65) + ')';
-      brush.fillRect(0, 0, 1024, 1536);
+      brush.fillRect(left, top, width, height);
     }
 
     brush.globalCompositeOperation = 'source-in';
-    brush.drawImage(art, 0, 0, 1024, 1536);
-    context.drawImage(mask, 0, 0);
-    drawFibers(context, wave, growth, false, pulse * s.strength);
+    brush.drawImage(view.source, left, top, width, height, left, top, width, height);
+    context.drawImage(mask, left, top, width, height);
+    drawFibers(context, view, wave, growth, false, pulse * s.strength);
     for (let i = 0; i < bubbleCount; i++) {
-      const [x, y] = bubbles[i];
-      spark(y, '#ffd597', 16 + pulse * 6, wave === 3 ? .84 : .55, x);
+      const [bx, by] = outer[i];
+      spark(by, '#ffd597', (16 + pulse * 6) * scale, wave === 3 ? .84 : .55, bx);
       context.beginPath();
-      context.arc(x, y, 6 + pulse * 3, 0, Math.PI * 2);
+      context.arc(bx, by, (6 + pulse * 3) * scale, 0, Math.PI * 2);
       context.strokeStyle = '#ffe3ac70';
-      context.lineWidth = 1.2;
+      context.lineWidth = 1.2 * scale;
       context.stroke();
     }
-    pumpHeart(s, elapsed);
+    pumpHeart(s, elapsed, view);
     for (let i = 0; i < visible; i++) {
       const energized = s.step === i ? pulse * s.strength : 0;
-      spark(centers[i][1], centers[i][2], 14 + 15 * energized, .64 + .36 * energized);
+      const [cx, cy] = view.centers[i];
+      spark(cy, centers[i][2], (14 + 15 * energized) * scale, .64 + .36 * energized, cx);
     }
-    if (moving && since > .025) {
-      const trail = context.createLinearGradient(0, y, 0, tip);
+    if (moving && since > .025 && (x !== tip[0] || y !== tip[1])) {
+      const trail = context.createLinearGradient(x, y, ...tip);
       trail.addColorStop(0, centers[s.step][2] + '50');
       trail.addColorStop(1, '#fff2d7');
       context.strokeStyle = trail;
-      context.lineWidth = 2;
-      context.beginPath();
-      context.moveTo(512, y);
-      context.lineTo(512, tip);
-      context.stroke();
-      spark(tip, '#ffe3bd', 10, .72);
+      context.lineWidth = 2 * scale;
+      trace(context, [[x, y], tip], 1);
+      spark(tip[1], '#ffe3bd', 10 * scale, .72, tip[0]);
     }
   }
 
@@ -319,6 +402,7 @@
     }
     if (!s.lastPaint || s.audio.currentTime - s.lastPaint >= 1 / 32) {
       paint(s, elapsed);
+      s.elapsed = elapsed;
       s.lastPaint = s.audio.currentTime;
     }
     if (s.player?.ended && s.step < total - 1) {
@@ -379,11 +463,11 @@
       stop.disabled = false;
       display.hidden = false;
       stage.classList.add('music-mode');
-      context.clearRect(0, 0, 1024, 1536);
+      prepareView(Math.max(0, angleButtons.findIndex(button => button.getAttribute('aria-pressed') === 'true')));
       status.textContent = 'Waiting for the first accent…';
-      await Promise.all([audio.resume(), art.decode(), s.player?.play()]);
+      await Promise.all([audio.resume(), art.decode(), sheet.decode(), s.player?.play()]);
       if (s !== session) return;
-      prepareHeart();
+      prepareHeart(currentView);
       s.origin = audio.currentTime;
       stage.scrollIntoView({block: 'start'});
       frame(s);
@@ -393,6 +477,12 @@
       status.textContent = 'Playback could not start. Check the audio file or try the built-in tone.';
     }
   });
+
+  angleButtons.forEach((button, index) => button.addEventListener('click', () => {
+    if (!session) return;
+    prepareView(index);
+    if (session.elapsed !== undefined) paint(session, session.elapsed);
+  }));
 
   const AudioElement = window.Audio;
   stop.addEventListener('click', () => {
