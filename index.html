@@ -2,8 +2,46 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#10081e"><title>LightBody — 114 Energy Points</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui;background:#090713;color:#f6e9ff}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 25%,#29103e 0%,#090713 68%);min-height:100vh}header{padding:22px clamp(16px,4vw,52px);display:flex;justify-content:space-between;align-items:center;gap:15px;border-bottom:1px solid #ffffff19}h1{font-size:clamp(22px,3vw,36px);letter-spacing:.08em;margin:0;background:linear-gradient(90deg,#fff,#dda9ff);background-clip:text;color:transparent}small,.muted{color:#c9b7d4}main{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:24px;max-width:1380px;margin:auto;padding:20px}.stage{position:relative;min-height:70vh;border:1px solid #b26fff44;border-radius:22px;overflow:hidden;background:radial-gradient(ellipse at center,#291337 0%,#10091f 60%,#090612 100%)}svg{display:block;width:100%;height:min(80vh,920px);min-height:600px}.panel{border:1px solid #a66dd244;border-radius:20px;background:#170f25cc;padding:22px;align-self:start}h2{margin:0 0 14px;font-size:19px}.stat{font-size:52px;font-weight:750;color:#f8cb7e;font-variant-numeric:tabular-nums;margin:12px 0}.progress{height:9px;border-radius:9px;background:#42304d;overflow:hidden}.progress>div{height:100%;background:linear-gradient(90deg,#f8a64c,#ec81fc);width:0;transition:width .2s}button{background:#3a2252;color:white;border:1px solid #b685db77;padding:12px 15px;border-radius:11px;cursor:pointer;font:inherit}button:hover{background:#613579}button.primary{background:#8a43b1}button:focus-visible,input:focus-visible{outline:2px solid #ffce84;outline-offset:3px}.buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}label{display:block;margin:18px 0 8px;font-size:14px;color:#ead4f3}input[type=range]{width:100%;accent-color:#e4a5ff}.legend{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.chip{border:1px solid #ffffff2d;border-radius:99px;padding:5px 10px;font-size:12px}.notice{font-size:12px;line-height:1.6;color:#baa7c6;margin-top:22px}.artwork{opacity:var(--art-radiance,.6);transition:opacity .35s ease}.energy-node{transition:opacity .25s ease}.energy-node .spark{transform-box:fill-box;transform-origin:center}.energy-node.is-active .spark{animation:shimmer 3.8s ease-in-out infinite;animation-delay:var(--pulse-delay)}@keyframes shimmer{50%{transform:scale(1.45);opacity:.48}}@media(prefers-reduced-motion:reduce){.artwork,.energy-node,.progress>div,.completion{transition:none}.energy-node.is-active .spark{animation:none}}.completion{z-index:1;position:absolute;top:18px;left:50%;transform:translateX(-50%);background:#241033dd;border:1px solid #ffcfff66;border-radius:30px;padding:9px 17px;letter-spacing:.12em;opacity:0;transition:opacity 1s;pointer-events:none}.completion.visible{opacity:1}@media(max-width:820px){main{grid-template-columns:1fr}.stage{min-height:500px}svg{height:70vh;min-height:480px}.panel{order:-1}}
+
+.viewer {
+  position: relative;
+  perspective: 900px;
+  transform-style: preserve-3d;
+}
+.viewer:focus-visible { outline: 2px solid #ffce84; outline-offset: -4px; }
+.viewer.is-3d { cursor: grab; touch-action: pan-y; }
+.viewer.is-dragging { cursor: grabbing; }
+.viewer svg { pointer-events: none; }
+.viewer.is-3d svg {
+  transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg))
+    translateZ(var(--depth, 0px)) scale(.91);
+  transition: transform .3s ease-out;
+}
+.viewer.is-dragging svg { transition: none; }
+.viewer .depth-plane {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+}
+.viewer.is-3d .depth-plane { visibility: visible; }
+.depth-near { --depth: 48px; }
+.depth-far { --depth: -56px; }
+.view-controls { display: flex; align-items: center; gap: 12px; margin: 16px 0; }
+.view-controls button { flex: none; }
+.view-controls button[aria-pressed="true"] { background: #67378a; }
+.view-controls small { line-height: 1.4; }
+@media(prefers-reduced-motion:reduce) {
+  .viewer.is-3d svg { transition: none; }
+}
 </style></head><body><header><div><h1>LIGHTBODY</h1><small>114-point energy constellation · Interactive activation</small></div><nav style="display:flex;align-items:center;gap:18px;flex-wrap:wrap"><a href="./about.html" style="color:#f1c5ff;text-decoration:none;font-weight:650">About</a><a href="https://tonyparker1964.github.io/LightBody/" style="color:#f1c5ff;text-decoration:none" title="Open the live LightBody web app">Website ↗</a></nav></header>
-<main><section class="stage" aria-label="Animated symbolic energy body"><div id="completion" class="completion">FULL LIGHT BODY ACTIVATED</div><svg id="art" viewBox="0 0 1024 1536" role="img" aria-label="Luminous energy body with a golden geometric field and animated chakra points">
+<main><section class="stage" aria-label="Animated symbolic energy body"><div id="completion" class="completion">FULL LIGHT BODY ACTIVATED</div><div id="viewer" class="viewer" role="group" aria-label="LightBody artwork view" aria-describedby="viewHelp" tabindex="0">
+<svg class="depth-plane depth-far" viewBox="0 0 1024 1536" aria-hidden="true">
+  <g fill="none" stroke="#bb7fff" stroke-width="2" opacity=".36">
+    <ellipse cx="512" cy="768" rx="492" ry="741"/>
+    <ellipse cx="512" cy="768" rx="437" ry="687" stroke-dasharray="2 14"/>
+  </g>
+</svg>
+<svg id="art" viewBox="0 0 1024 1536" role="img" aria-label="Luminous energy body with a golden geometric field and animated chakra points">
   <defs>
     <radialGradient id="glow">
       <stop stop-color="white"/>
@@ -13,12 +51,71 @@
   </defs>
   <image class="artwork" href="./lightbody.jpg" width="1024" height="1536"/>
   <g id="points" style="mix-blend-mode:screen"></g>
-</svg></section>
-<aside class="panel"><h2>Activation console</h2><div class="muted">Illuminated energy points</div><div class="stat"><span id="count">0</span><span class="muted" style="font-size:20px"> / 114</span></div><div class="progress"><div id="bar"></div></div><div class="buttons"><button class="primary" id="start">▶ Activate</button><button id="pause">Ⅱ Pause</button><button id="reset">↺ Reset</button><button id="all">✦ Full Light</button></div><label for="speed">Activation speed <span id="speedLabel">12</span> points/sec</label><input id="speed" type="range" min="1" max="60" value="12"><label for="brightness">Radiance <span id="brightLabel">80</span>%</label><input id="brightness" type="range" min="20" max="100" value="80"><div class="legend"><span class="chip">🟡 Nerves</span><span class="chip">🔴 Arteries</span><span class="chip">🔵 Veins</span><span class="chip">🟣 Energy</span></div><p class="muted" id="status" aria-live="polite">Ready to illuminate.</p><p class="notice">This is an artistic, symbolic 114-point energy model. Chakra counts and locations are not scientifically established. The vascular and neural pathways are stylized rather than medical diagrams.</p></aside></main>
+</svg>
+<svg class="depth-plane depth-near" viewBox="0 0 1024 1536" aria-hidden="true">
+  <g fill="none" stroke="#ffd486" stroke-width="2" opacity=".62" stroke-linecap="round">
+    <path d="M54 312h20m-10-10v20 M939 293h16m-8-8v16 M77 1053h20m-10-10v20 M931 1002h20m-10-10v20 M157 1309h16m-8-8v16 M857 1353h16m-8-8v16"/>
+  </g>
+  <g fill="#ffe5b1" opacity=".47">
+    <circle cx="108" cy="208" r="3"/><circle cx="944" cy="548" r="4"/>
+    <circle cx="54" cy="819" r="3"/><circle cx="971" cy="776" r="3"/>
+    <circle cx="81" cy="1185" r="3"/><circle cx="950" cy="1210" r="4"/>
+  </g>
+</svg>
+</div></section>
+<aside class="panel"><h2>Activation console</h2><div class="muted">Illuminated energy points</div><div class="stat"><span id="count">0</span><span class="muted" style="font-size:20px"> / 114</span></div><div class="progress"><div id="bar"></div></div><div class="buttons"><button class="primary" id="start">▶ Activate</button><button id="pause">Ⅱ Pause</button><button id="reset">↺ Reset</button><button id="all">✦ Full Light</button></div><div class="view-controls"><button id="viewMode" type="button" aria-pressed="false">3D View</button><small id="viewHelp">Drag to tilt. Use the arrow keys when the artwork is focused.</small></div><label for="speed">Activation speed <span id="speedLabel">12</span> points/sec</label><input id="speed" type="range" min="1" max="60" value="12"><label for="brightness">Radiance <span id="brightLabel">80</span>%</label><input id="brightness" type="range" min="20" max="100" value="80"><div class="legend"><span class="chip">🟡 Nerves</span><span class="chip">🔴 Arteries</span><span class="chip">🔵 Veins</span><span class="chip">🟣 Energy</span></div><p class="muted" id="status" aria-live="polite">Ready to illuminate.</p><p class="notice">This is an artistic, symbolic 114-point energy model. Chakra counts and locations are not scientifically established. The vascular and neural pathways are stylized rather than medical diagrams.</p></aside></main>
 <script>
 'use strict';
 const art = document.getElementById('art');
 const points = document.getElementById('points');
+const viewer = document.getElementById('viewer');
+const viewMode = document.getElementById('viewMode');
+let tiltX = 0;
+let tiltY = 0;
+let drag;
+
+function setTilt(x, y) {
+  tiltX = Math.max(-18, Math.min(18, x));
+  tiltY = Math.max(-34, Math.min(34, y));
+  viewer.style.setProperty('--tilt-x', tiltX + 'deg');
+  viewer.style.setProperty('--tilt-y', tiltY + 'deg');
+}
+
+function setDepthView(enabled) {
+  viewer.classList.toggle('is-3d', enabled);
+  viewMode.setAttribute('aria-pressed', String(enabled));
+  setTilt(enabled ? 3 : 0, enabled ? -12 : 0);
+}
+
+viewMode.addEventListener('click', () => {
+  setDepthView(!viewer.classList.contains('is-3d'));
+});
+viewer.addEventListener('pointerdown', event => {
+  if (!viewer.classList.contains('is-3d') || drag || event.button !== 0) return;
+  drag = {id: event.pointerId, x: event.clientX, y: event.clientY, tiltX, tiltY};
+  viewer.setPointerCapture(event.pointerId);
+  viewer.classList.add('is-dragging');
+});
+viewer.addEventListener('pointermove', event => {
+  if (drag?.id !== event.pointerId) return;
+  setTilt(drag.tiltX - (event.clientY - drag.y) * .18,
+    drag.tiltY + (event.clientX - drag.x) * .22);
+});
+viewer.addEventListener('lostpointercapture', event => {
+  if (drag?.id !== event.pointerId) return;
+  drag = undefined;
+  viewer.classList.remove('is-dragging');
+});
+viewer.addEventListener('keydown', event => {
+  if (!viewer.classList.contains('is-3d')) return;
+  const direction = {
+    ArrowUp: [4, 0], ArrowDown: [-4, 0], ArrowLeft: [0, -5], ArrowRight: [0, 5]
+  }[event.key];
+  if (!direction) return;
+  event.preventDefault();
+  setTilt(tiltX + direction[0], tiltY + direction[1]);
+});
+setDepthView(!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 function make(tag, attrs, parent) {
   const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
