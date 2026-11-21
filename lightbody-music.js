@@ -136,7 +136,7 @@
 
   function bell(s, elapsed) {
     const clock = s.audio.currentTime;
-    const frequency = [130.81, 146.83, 164.81, 174.61, 196, 220, 261.63][Math.min(s.step, 6)];
+    const frequency = [130.81, 146.83, 164.81, 174.61, 196, 220, 261.63][Math.min(s.step + 1, centers.length - 1)];
     for (const [ratio, volume] of [[1, .16], [2, .038], [3, .018]]) {
       const voice = s.audio.createOscillator();
       const envelope = s.audio.createGain();
