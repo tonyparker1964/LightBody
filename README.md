@@ -13,3 +13,7 @@ Open `index.html` in any modern browser, or enable GitHub Pages (Settings → Pa
 
 ## Important
 The 114-point model is symbolic, not a medically established chakra atlas. Anatomical lines are artistic rather than diagnostic. The current repository uses procedurally drawn SVG artwork; the user-supplied rendered image is **not yet included** in this commit.
+
+## Website and About
+- [Launch LightBody](https://tonyparker1964.github.io/LightBody/)
+- [About LightBody](https://tonyparker1964.github.io/LightBody/about.html)
