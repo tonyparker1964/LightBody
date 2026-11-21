@@ -467,7 +467,11 @@
       selected = index;
       const [yaw, pitch, crop] = presets[index];
       Object.assign(state, {yaw, pitch});
-      if (crop) angleArt.setAttribute('viewBox', crop);
+      if (crop) {
+        angleArt.setAttribute('viewBox', crop);
+        const bounds = angleArt.querySelector('rect');
+        crop.split(' ').forEach((value, i) => bounds.setAttribute(['x', 'y', 'width', 'height'][i], value));
+      }
       angleButtons.forEach((item, i) => item.setAttribute('aria-pressed', String(i === index)));
       requestDraw();
     }));
