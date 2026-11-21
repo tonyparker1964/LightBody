@@ -34,6 +34,19 @@
 .angle-picker { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 15px; }
 .angle-picker button { padding:6px 9px; font-size:12px; }
 .angle-picker button[aria-pressed="true"] { background:#67378a; }
+
+.music-mode { background:#000; }
+.music-mode #viewer, .music-mode #completion { visibility:hidden; }
+#musicScene { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; }
+#musicScene[hidden] { display:none; }
+.music-controls { border:1px solid #9d65bb55; border-radius:14px; padding:12px; margin:0 0 18px; }
+.music-controls legend { padding:0 5px; color:#f0c4ff; }
+.music-controls label { margin:10px 0 5px; }
+.music-controls input { width:100%; font:inherit; font-size:13px; }
+.music-controls input[type=number] { width:5em; padding:4px; background:#241430; color:inherit; border:1px solid #8b5ba7; border-radius:5px; }
+.music-controls .buttons { margin:12px 0 6px; }
+.music-controls button { font-size:13px; padding:7px; }
+.music-controls p { font-size:12px; margin:5px 0 0; }
 </style></head><body><header><div><h1>LIGHTBODY</h1><small>114-point energy constellation · Interactive activation</small></div><nav style="display:flex;align-items:center;gap:18px;flex-wrap:wrap"><a href="./about.html" style="color:#f1c5ff;text-decoration:none;font-weight:650">About</a><a href="https://tonyparker1964.github.io/LightBody/" style="color:#f1c5ff;text-decoration:none" title="Open the live LightBody web app">Website ↗</a></nav></header>
 <main><section class="stage" aria-label="Animated symbolic energy body"><div id="completion" class="completion">FULL LIGHT BODY ACTIVATED</div><div id="viewer" class="viewer" role="group" aria-label="LightBody artwork view" aria-describedby="viewHelp" tabindex="0">
 <canvas id="orbit" hidden role="img" aria-label="Rotatable 3D energy body showing the front, sides, and back"></canvas>
@@ -50,8 +63,15 @@
   <g id="points" style="mix-blend-mode:screen"></g>
 </svg>
 
-</div></section>
-<aside class="panel"><h2>Activation console</h2><div class="muted">Illuminated energy points</div><div class="stat"><span id="count">0</span><span class="muted" style="font-size:20px"> / 114</span></div><div class="progress"><div id="bar"></div></div><div class="buttons"><button class="primary" id="start">▶ Activate</button><button id="pause">Ⅱ Pause</button><button id="reset">↺ Reset</button><button id="all">✦ Full Light</button></div><div class="view-controls"><button id="viewMode" type="button" aria-pressed="false" disabled>3D Orbit</button><small id="viewHelp">Pick an artwork angle or drag to rotate the 3D model.</small></div><div class="angle-picker" role="group" aria-label="Artwork angles">
+</div><canvas id="musicScene" width="1024" height="1536" hidden role="img" aria-label="Music-driven LightBody illumination from root to crown"></canvas></section>
+<aside class="panel"><fieldset class="music-controls"><legend>Music sequence</legend>
+<label for="musicFile">Music file <small>(optional)</small></label>
+<input id="musicFile" type="file" accept="audio/*">
+<label for="musicBpm">Tone tempo</label>
+<input id="musicBpm" type="number" min="45" max="160" value="72"> BPM
+<div class="buttons"><button type="button" class="primary" id="musicStart">Play sequence</button><button type="button" id="musicStop" disabled>Stop</button></div>
+<p class="muted" id="musicStatus" aria-live="polite">Choose a track or play with built-in tones.</p>
+</fieldset><h2>Activation console</h2><div class="muted">Illuminated energy points</div><div class="stat"><span id="count">0</span><span class="muted" style="font-size:20px"> / 114</span></div><div class="progress"><div id="bar"></div></div><div class="buttons"><button class="primary" id="start">▶ Activate</button><button id="pause">Ⅱ Pause</button><button id="reset">↺ Reset</button><button id="all">✦ Full Light</button></div><div class="view-controls"><button id="viewMode" type="button" aria-pressed="false" disabled>3D Orbit</button><small id="viewHelp">Pick an artwork angle or drag to rotate the 3D model.</small></div><div class="angle-picker" role="group" aria-label="Artwork angles">
 <button type="button" data-angle="0" aria-pressed="true" disabled>Front</button>
 <button type="button" data-angle="1" aria-pressed="false" disabled>Back</button>
 <button type="button" data-angle="2" aria-pressed="false" disabled>Top</button>
@@ -137,4 +157,4 @@ document.getElementById('all').onclick=()=>{running=false;active=nodes.length;re
 speed.oninput=()=>document.getElementById('speedLabel').textContent=speed.value;
 brightness.oninput=()=>{document.getElementById('brightLabel').textContent=brightness.value;render()};
 render();requestAnimationFrame(tick);
-</script></body></html>
+</script><script src="./lightbody-music.js"></script></body></html>
