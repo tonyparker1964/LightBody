@@ -18,14 +18,36 @@
     ['Throat', 335, '#42e4ff'], ['Brow', 207, '#8473ff'],
     ['Crown', 140, '#f87bff']
   ];
-  const waves = [
-    ['Shoulders and upper arms', [[374,362,95],[650,362,95],[355,487,85],[669,487,85]]],
-    ['Elbows, wrists, and fingertips', [[331,577,95],[693,577,95],[255,748,125],[769,748,125],[212,849,100],[812,849,100]]],
-    ['Torso and hips', [[438,434,122],[586,434,122],[444,614,115],[580,614,115],[408,785,115],[616,785,115]]],
-    ['Thighs and knees', [[424,890,104],[600,890,104],[455,1028,102],[569,1028,102]]],
-    ['Calves, ankles, and toes', [[448,1181,115],[576,1181,115],[474,1322,108],[550,1322,108],[470,1415,90],[554,1415,90]]],
-    ['Lotus and golden field', [[512,1441,300]]]
+  // Trace the artwork in its original 1024 × 1536 coordinate space.
+  const guides = [
+    [[524,433],[546,402],[586,370],[640,375],[666,452],[689,546],[727,633],[766,744]],
+    [[535,448],[563,520],[557,625],[553,733],[584,835],[581,946],[568,1030],[564,1150],[545,1325],[571,1418]],
+    [[525,432],[535,356],[537,299],[551,246],[554,193],[536,151]],
+    [[766,744],[797,780],[822,802],[851,823]],
+    [[766,744],[781,798],[778,847],[786,872]],
+    [[766,744],[803,809],[810,862],[812,894]],
+    [[766,744],[816,813],[830,848],[832,881]],
+    [[590,381],[603,426],[599,501],[571,557],[541,580]],
+    [[545,1325],[535,1375],[539,1431]]
   ];
+  const fiberLayers = [
+    ['Arteries', '#ff3b52', 0], ['Veins', '#327aff', 9], ['Nerves', '#ffca5e', 18]
+  ].map(([name, color, spread], layer) => ({
+    name, color,
+    paths: guides.flatMap((guide, branch) => [-1, 1].flatMap(side =>
+      Array.from({length: layer === 2 ? 3 : 2}, (_, strand) => guide.map(([x, y], i) => {
+        const drift = (spread + strand * 6) * Math.sin(i * 1.4 + branch * .35 + layer);
+        return [512 + side * (x - 512 + drift), y + (strand * 5 + layer * 3) * Math.sin(i)];
+      }))))
+  }));
+  const bubbles = [
+    [512,41],[512,85],[404,114],[618,114],[327,229],[696,229],
+    [214,231],[810,231],[96,408],[925,408],[159,508],[865,508],
+    [100,696],[924,696],[116,797],[906,797],[286,918],[736,918],
+    [270,1028],[753,1028],[326,1128],[696,1128],[383,1247],[641,1247],
+    [289,1286],[734,1286],[228,1357],[796,1357],[355,1473],[668,1473]
+  ];
+  const waves = [...fiberLayers.map(layer => layer.name), 'Light bubbles', 'Golden field', 'Lotus and full LightBody'];
   const total = centers.length + waves.length;
 
   const mask = document.createElement('canvas');
@@ -90,15 +112,58 @@
     brush.fillRect(x - radius, y - radius, radius * 2, radius * 2);
   }
 
-  function spark(y, color, radius, intensity) {
-    const glow = context.createRadialGradient(512, y, 0, 512, y, radius);
+  function spark(y, color, radius, intensity, x = 512) {
+    const glow = context.createRadialGradient(x, y, 0, x, y, radius);
     glow.addColorStop(0, '#fffdf3');
     glow.addColorStop(.16, color);
     glow.addColorStop(1, color + '00');
     context.globalAlpha = intensity;
     context.fillStyle = glow;
-    context.fillRect(512 - radius, y - radius, radius * 2, radius * 2);
+    context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
     context.globalAlpha = 1;
+  }
+
+  function trace(ctx, points, progress) {
+    const extent = (points.length - 1) * Math.max(0, Math.min(1, progress));
+    ctx.beginPath();
+    ctx.moveTo(...points[0]);
+    for (let i = 0; i < extent; i++) {
+      const a = points[Math.max(0, i - 1)], b = points[i];
+      const c = points[i + 1], d = points[Math.min(i + 2, points.length - 1)];
+      const t = Math.min(1, extent - i);
+      const sample = (u, axis) => .5 * ((2 * b[axis])
+        + (-a[axis] + c[axis]) * u
+        + (2 * a[axis] - 5 * b[axis] + 4 * c[axis] - d[axis]) * u * u
+        + (-a[axis] + 3 * b[axis] - 3 * c[axis] + d[axis]) * u * u * u);
+      for (let j = 1; j <= 7; j++) {
+        const u = t * j / 7;
+        ctx.lineTo(sample(u, 0), sample(u, 1));
+      }
+    }
+    ctx.stroke();
+  }
+
+  function drawFibers(ctx, wave, progress, maskPass, pulse) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = maskPass ? 'source-over' : 'screen';
+    fiberLayers.forEach(({color, paths}, layer) => {
+      if (layer > wave) return;
+      const live = layer === wave;
+      for (const [index, path] of paths.entries()) {
+        const growth = live ? (progress - (index % 7) * .026) * 1.32 : 1;
+        if (growth <= 0) continue;
+        ctx.strokeStyle = maskPass ? '#fff9' : color;
+        ctx.lineWidth = maskPass ? 16 : live ? 2.4 : 1.2;
+        ctx.globalAlpha = maskPass ? .8 : live ? .70 + .30 * pulse : .44;
+        if (!maskPass) {
+          ctx.shadowBlur = live ? 10 : 3;
+          ctx.shadowColor = color;
+        }
+        trace(ctx, path, growth);
+      }
+    });
+    ctx.restore();
   }
 
   function paint(s, elapsed) {
@@ -138,15 +203,16 @@
       if (crownAge > .39) reveal(512, 41, 32);
     }
 
-    const waveCount = s.step - centers.length + 1;
-    for (let i = 0; i < waveCount; i++) {
-      waves[i][1].forEach(([x, y, radius], index) => {
-        const local = since - Math.floor(index / 2) * .058;
-        if (i === waveCount - 1 && local < 0) return;
-        const spread = i === waveCount - 1 ? .28 + .72 * Math.min(1, local / .24) : 1;
-        reveal(x, y, radius * spread, i === waveCount - 1 ? .84 + .16 * pulse * s.strength : .92);
-      });
+    const wave = s.step - centers.length;
+    const growth = Math.min(1, since / Math.max(.27, s.interval * .84));
+    drawFibers(brush, wave, growth, true, pulse);
+    const bubbleCount = wave < 3 ? 0 : wave === 3 ? Math.floor(bubbles.length * growth) : bubbles.length;
+    for (let i = 0; i < bubbleCount; i++) reveal(...bubbles[i], 31);
+    if (wave >= 4) {
+      brush.fillStyle = 'rgba(255,255,255,' + (wave === 4 ? growth * .55 : .55) + ')';
+      brush.fillRect(0, 0, 1024, 1536);
     }
+    if (wave >= 5) reveal(512, 1440, 260);
     if (s.step === total - 1) {
       brush.fillStyle = 'rgba(255,255,255,' + Math.min(1, since / .65) + ')';
       brush.fillRect(0, 0, 1024, 1536);
@@ -155,6 +221,16 @@
     brush.globalCompositeOperation = 'source-in';
     brush.drawImage(art, 0, 0, 1024, 1536);
     context.drawImage(mask, 0, 0);
+    drawFibers(context, wave, growth, false, pulse * s.strength);
+    for (let i = 0; i < bubbleCount; i++) {
+      const [x, y] = bubbles[i];
+      spark(y, '#ffd597', 16 + pulse * 6, wave === 3 ? .84 : .55, x);
+      context.beginPath();
+      context.arc(x, y, 6 + pulse * 3, 0, Math.PI * 2);
+      context.strokeStyle = '#ffe3ac70';
+      context.lineWidth = 1.2;
+      context.stroke();
+    }
     pumpHeart(s, elapsed);
     for (let i = 0; i < visible; i++) {
       const energized = s.step === i ? pulse * s.strength : 0;
@@ -171,19 +247,6 @@
       context.lineTo(512, tip);
       context.stroke();
       spark(tip, '#ffe3bd', 10, .72);
-    }
-    if (waveCount > 0 && pulse > .025) {
-      context.globalCompositeOperation = 'screen';
-      for (const [x, y, radius] of waves[waveCount - 1][1]) {
-        const glow = context.createRadialGradient(x, y, 0, x, y, radius * .57);
-        glow.addColorStop(0, '#ffd071');
-        glow.addColorStop(1, '#ffd07100');
-        context.fillStyle = glow;
-        context.globalAlpha = pulse * s.strength * .26;
-        context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-      }
-      context.globalAlpha = 1;
-      context.globalCompositeOperation = 'source-over';
     }
   }
 
@@ -216,7 +279,7 @@
     s.lastBeat = elapsed;
     s.strength = strength;
     status.textContent = s.step < centers.length ? centers[s.step][0] + ' illuminated.' :
-      waves[s.step - centers.length][0] + ' illuminated.';
+      waves[s.step - centers.length] + ' illuminated.';
   }
 
   function detectBeat(s, elapsed) {
