@@ -33,6 +33,53 @@
   mask.height = 1536;
   const brush = mask.getContext('2d');
   let session;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  // Feather the crop into the chest while keeping the green chakra stationary.
+  const heart = document.createElement('canvas');
+  heart.width = 116;
+  heart.height = 130;
+  const heartBrush = heart.getContext('2d');
+  const heartX = 493, heartY = 369;
+  let heartReady = false;
+
+  function prepareHeart() {
+    if (heartReady) return;
+    heartBrush.drawImage(art, heartX, heartY, heart.width, heart.height,
+      0, 0, heart.width, heart.height);
+    const edge = heartBrush.createRadialGradient(0, 0, .53, 0, 0, 1);
+    edge.addColorStop(0, '#fff');
+    edge.addColorStop(1, 'transparent');
+    heartBrush.save();
+    heartBrush.globalCompositeOperation = 'destination-in';
+    heartBrush.translate(55, 67);
+    heartBrush.scale(51, 61);
+    heartBrush.fillStyle = edge;
+    heartBrush.fillRect(-1.2, -1.2, 2.4, 2.4);
+    heartBrush.restore();
+    const chakra = heartBrush.createRadialGradient(19, 101, 17, 19, 101, 33);
+    chakra.addColorStop(0, '#fff');
+    chakra.addColorStop(1, 'transparent');
+    heartBrush.globalCompositeOperation = 'destination-out';
+    heartBrush.fillStyle = chakra;
+    heartBrush.fillRect(0, 68, 53, 62);
+    heartBrush.globalCompositeOperation = 'source-over';
+    heartReady = true;
+  }
+
+  function pumpHeart(s, elapsed) {
+    if (s.step < 3 || reducedMotion.matches || !heartReady) return;
+    const phase = (Math.max(0, elapsed - s.lastBeat) / s.interval) % 1;
+    const primary = Math.exp(-((phase - .13) ** 2) / .006);
+    const recoil = Math.exp(-((phase - .33) ** 2) / .007);
+    const contraction = (primary - .36 * recoil) * (.62 + .38 * s.strength);
+    context.save();
+    context.translate(548, 436);
+    context.rotate(contraction * .055);
+    context.scale(1 - contraction * .14, 1 - contraction * .19);
+    context.globalAlpha = Math.min(1, (elapsed - s.heartBeat) / .18);
+    context.drawImage(heart, heartX - 548, heartY - 436);
+    context.restore();
+  }
 
   function reveal(x, y, radius, strength = 1) {
     const gradient = brush.createRadialGradient(x, y, radius * .19, x, y, radius);
@@ -57,6 +104,11 @@
   function paint(s, elapsed) {
     context.clearRect(0, 0, 1024, 1536);
     if (s.step < 0) return;
+    if (s.finished) {
+      context.drawImage(art, 0, 0, 1024, 1536);
+      pumpHeart(s, elapsed);
+      return;
+    }
     const since = Math.max(0, elapsed - s.lastBeat);
     const pulse = Math.exp(-since * 7);
     const visible = Math.min(s.step + 1, centers.length);
@@ -103,6 +155,7 @@
     brush.globalCompositeOperation = 'source-in';
     brush.drawImage(art, 0, 0, 1024, 1536);
     context.drawImage(mask, 0, 0);
+    pumpHeart(s, elapsed);
     for (let i = 0; i < visible; i++) {
       const energized = s.step === i ? pulse * s.strength : 0;
       spark(centers[i][1], centers[i][2], 14 + 15 * energized, .64 + .36 * energized);
@@ -154,6 +207,8 @@
 
   function advance(s, elapsed, strength) {
     s.step++;
+    if (s.step === 3) s.heartBeat = elapsed;
+    s.lastBeatClock = s.audio.currentTime;
     if (s.step === centers.length - 1) s.crownBeat = elapsed;
     if (s.lastBeat !== null && s.player) {
       s.interval = s.interval * .65 + Math.min(1.5, elapsed - s.lastBeat) * .35;
@@ -188,7 +243,10 @@
 
   function frame(s) {
     if (s !== session) return;
-    const elapsed = s.player ? s.player.currentTime : s.audio.currentTime - s.origin;
+    let elapsed = s.player ? s.player.currentTime : s.audio.currentTime - s.origin;
+    if (s.player?.ended && s.step === total - 1) {
+      elapsed = Math.max(elapsed, s.lastBeat + s.audio.currentTime - s.lastBeatClock);
+    }
     if (s.step < total - 1) {
       if (s.player && !s.player.ended) detectBeat(s, elapsed);
       else if (!s.player && elapsed >= s.next) {
@@ -196,14 +254,20 @@
         s.next = elapsed + s.fallback;
       }
     }
-    paint(s, elapsed);
+    if (!s.lastPaint || s.audio.currentTime - s.lastPaint >= 1 / 32) {
+      paint(s, elapsed);
+      s.lastPaint = s.audio.currentTime;
+    }
     if (s.player?.ended && s.step < total - 1) {
       status.textContent = 'Track ended before the sequence completed.';
       return;
     }
     if (s.step === total - 1 && elapsed - s.lastBeat > .75) {
-      status.textContent = 'Full LightBody illuminated.';
-      return;
+      if (!s.finished) {
+        status.textContent = 'Full LightBody illuminated.';
+        s.finished = true;
+      }
+      if (reducedMotion.matches) return;
     }
     s.frame = requestAnimationFrame(() => frame(s));
   }
@@ -256,6 +320,7 @@
       status.textContent = 'Waiting for the first accent…';
       await Promise.all([audio.resume(), art.decode(), s.player?.play()]);
       if (s !== session) return;
+      prepareHeart();
       s.origin = audio.currentTime;
       stage.scrollIntoView({block: 'start'});
       frame(s);
