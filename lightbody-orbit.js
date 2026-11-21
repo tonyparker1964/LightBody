@@ -3,6 +3,8 @@
 
   // Coordinates share the illustration's scale: 250 image pixels per scene unit.
   const parts = [];
+  // Match the original illustration's shoulder width and crown-to-sole framing.
+  const registration = {width: 1.08, height: 1.057, offsetY: -.202};
   function form(x, y, z, width, height, depth, angle = 0) {
     parts.push({x, y, z, width, height, depth, sin: Math.sin(angle), cos: Math.cos(angle),
       scale: Math.min(width, height, depth),
@@ -184,9 +186,11 @@
 
     for (const {x, y, color, radius} of nodes) {
       const worldX = (x - 512) / 250, worldY = (768 - y) / 250;
-      const z = surface(worldX, worldY, 1) ?? (.25 + .27 * Math.cos(x * .04 + y * .012));
+      const modelX = worldX / registration.width;
+      const modelY = (worldY - registration.offsetY) / registration.height;
+      const z = surface(modelX, modelY, 1) ?? (.25 + .27 * Math.cos(x * .04 + y * .012));
       const rgb = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16) / 255);
-      points.push(worldX, worldY, z + .035, ...rgb, radius === 58 ? 1 : .52);
+      points.push(modelX, modelY, z + .035, ...rgb, radius === 58 ? 1 : .52);
     }
     return {lines: new Float32Array(lines), points: new Float32Array(points)};
   }
@@ -197,6 +201,7 @@
     attribute float size;
     uniform vec2 angle;
     uniform vec2 viewport;
+    uniform vec3 registration;
     uniform float pixelRatio;
     varying mediump vec3 colorOrNormal;
     varying mediump vec3 modelPosition;
@@ -210,13 +215,14 @@
     }
 
     void main() {
-      vec3 p = rotate(position);
-      float w = 1.0 - p.z * .105;
-      gl_Position = vec4(p.xy * viewport, -p.z * .23, w);
-      gl_PointSize = max(1.0, (8.0 + 32.0 * size) * pixelRatio / w);
+      vec3 registered = vec3(position.xy * registration.xy, position.z);
+      registered.y += registration.z;
+      vec3 p = rotate(registered);
+      gl_Position = vec4(p.xy * viewport, -p.z * .23, 1.0);
+      gl_PointSize = max(1.0, (8.0 + 32.0 * size) * pixelRatio);
       colorOrNormal = detail;
-      modelPosition = position;
-      viewNormal = rotate(detail);
+      modelPosition = registered;
+      viewNormal = rotate(vec3(detail.xy / registration.xy, detail.z));
     }`;
 
   const fragmentShader = `
@@ -245,7 +251,7 @@
         vec2 uv = vec2(.5 + modelPosition.x * (250.0 / 1024.0),
           .5 - modelPosition.y * (250.0 / 1536.0));
         vec3 original = texture2D(artwork, uv).rgb;
-        vec2 backPixel = vec2(769.0 - modelPosition.x * 80.0, 246.0 - modelPosition.y * 81.0);
+        vec2 backPixel = vec2(769.0 - modelPosition.x * 80.0, 230.0 - modelPosition.y * 77.0);
         float backSurface = atlasReady * smoothstep(.10, .50, -colorOrNormal.z);
         original = mix(original, texture2D(angleAtlas, backPixel / vec2(1536.0, 1024.0)).rgb, backSurface);
         float frontSurface = smoothstep(-.06, .22, colorOrNormal.z);
@@ -329,6 +335,7 @@
     const size = gl.getAttribLocation(program, 'size');
     const uniform = name => gl.getUniformLocation(program, name);
     const angle = uniform('angle'), viewport = uniform('viewport');
+    gl.uniform3f(uniform('registration'), registration.width, registration.height, registration.offsetY);
     const pixelRatio = uniform('pixelRatio'), material = uniform('material'), radiance = uniform('radiance');
 
     function upload(values) {
@@ -382,7 +389,7 @@
       gl.viewport(0, 0, width, height);
       gl.clearColor(.032, .017, .061, 1);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      const frame = Math.min(width / 4.22, height / 6.15);
+      const frame = Math.min(width / (1024 / 250), height / (1536 / 250));
       gl.uniform2f(viewport, 2 * frame / width, 2 * frame / height);
       gl.uniform2f(angle, state.yaw, state.pitch);
       gl.uniform1f(pixelRatio, dpr);
@@ -409,7 +416,7 @@
     const angleButtons = [...document.querySelectorAll('[data-angle]')];
     const presets = [
       [0, 0, ''],
-      [Math.PI, 0, '515 3 508 473'],
+      [Math.PI, 0, '606 3 326 473'],
       [0, 1.24, '1028 3 505 473'],
       [0, -1.24, '3 481 507 539'],
       [-.48, .64, '515 481 508 539'],
